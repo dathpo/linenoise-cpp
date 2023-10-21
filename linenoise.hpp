@@ -2518,9 +2518,13 @@ inline bool AddHistory(const char *line)
 	if (history_max_len == 0)
 		return false;
 
-	/* Don't add duplicated lines. */
-	if (!history.empty() && history.back() == line)
-		return false;
+	/* Find if the line already exists in the history. Expensive (O(n))
+	 * operation but acceptable for small histories */
+	auto it = std::find(history.begin(), history.end(), line);
+	if (it != history.end()) {
+		/* If found, erase the old line. */
+		history.erase(it);
+	}
 
 	/* If we reached the max length, remove the older line. */
 	if (history.size() == history_max_len) {

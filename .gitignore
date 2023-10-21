@@ -42,3 +42,5 @@ CMakeFiles
 CMakeCache.txt
 *.cmake
 history.txt
+.clang-format
+build/

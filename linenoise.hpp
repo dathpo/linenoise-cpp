@@ -1996,15 +1996,19 @@ inline void refreshSingleLine(struct linenoiseState *l)
 	/* Cursor to left edge */
 	snprintf(seq, 64, "\r");
 	ab += seq;
+
 	/* Write the prompt and the current buffer content */
 	ab += l->prompt;
 	ab.append(buf, len);
+
 	/* Erase to right */
 	snprintf(seq, 64, "\x1b[0K");
 	ab += seq;
-	/* Move cursor to original position. */
-	snprintf(seq, 64, "\r\x1b[%dC", (int)(unicodeColumnPos(buf, pos) + pcolwid));
+
+	/* Move cursor to absolute position. */
+	snprintf(seq, 64, "\r\x1b[%dG", (int)(unicodeColumnPos(buf, pos) + pcolwid + 1));
 	ab += seq;
+
 	if (write(fd, ab.c_str(), static_cast<int>(ab.length())) == -1) {
 	} /* Can't recover from write error. */
 }

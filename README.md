@@ -1,9 +1,9 @@
-cpp-linenoise
+linenoise-cpp
 =============
 
 Multi-platform (Unix, Windows) C++ header-only linenoise-based readline library.
 
-This library gathered code from following excellent libraries, clean it up, and put it into a C++ header file for convenience.
+This library gathered code from following excellent libraries, cleaned it up and put it into a C++ header file for convenience.
 
  * `linenoise.h` and `linenoise.c` ([antirez/linenoise](https://github.com/antirez/linenoise))
  * `ANSI.c` ([adoxa/ansicon](https://github.com/adoxa/ansicon))
@@ -22,12 +22,16 @@ Usage
 const auto path = "history.txt";
 
 // Setup completion words every time when a user types
-linenoise::SetCompletionCallback([](const char* editBuffer, std::vector<std::string>& completions) {
-    if (editBuffer[0] == 'h') {
-        completions.push_back("hello");
-        completions.push_back("hello there");
+std::vector<std::string> commands;
+auto completion_cb = [&commands](const char *buf, std::vector<std::string> &completions) {
+    for (const auto &cmd : commands) {
+        // If command starts with what the user has typed, add it
+        if (cmd.substr(0, strlen(buf)) == buf) {
+            completions.push_back(cmd);
+        }
     }
-});
+};
+linenoise::SetCompletionCallback(completion_cb);
 
 // Enable the multi-line mode
 linenoise::SetMultiLine(true);
@@ -85,9 +89,8 @@ const std::vector<std::string>& GetHistory();
 Tested compilers
 ----------------
 
-  * Visual Studio 2015
-  * Clang 3.5
-  * GCC 6.3.1
+  * Visual Studio 2022
+  * GCC 13.2.0
 
 License
 -------

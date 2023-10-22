@@ -1006,7 +1006,7 @@ inline int win32read(int *c)
 			} else {
 				switch (e.wVirtualKeyCode) {
 				case VK_ESCAPE: /* ignore - send ctrl-c, will return -1 */
-					*c = 3;
+					*c = 0;
 					return 1;
 				case VK_RETURN: /* enter */
 					*c = 13;
@@ -2325,6 +2325,8 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 		fprintf(stderr, "\x1b[u");
 
 		switch (c) {
+		case KEY_NULL: /* no-op */
+			break;
 		case ENTER: /* enter */
 			if (!history.empty())
 				history.pop_back();
@@ -2341,9 +2343,6 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 						line is empty, act as end-of-file. */
 			if (l.len > 0) {
 				linenoiseEditDelete(&l);
-			} else {
-				history.pop_back();
-				return -1;
 			}
 			break;
 		case CTRL_T: /* ctrl-t, swaps current character with previous. */

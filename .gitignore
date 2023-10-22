@@ -44,3 +44,4 @@ CMakeCache.txt
 history.txt
 .clang-format
 build/
+.vscode/

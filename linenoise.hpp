@@ -1012,10 +1012,18 @@ inline int win32read(int *c)
 					*c = 13;
 					return 1;
 				case VK_LEFT: /* left */
-					*c = 2;
+					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+						*c = 68;
+					} else {
+						*c = 2;
+					}
 					return 1;
 				case VK_RIGHT: /* right */
-					*c = 6;
+					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+						*c = 67;
+					} else {
+						*c = 6;
+					}
 					return 1;
 				case VK_UP: /* up */
 					*c = 16;
@@ -1037,7 +1045,11 @@ inline int win32read(int *c)
 					}
 					return 1;
 				case VK_DELETE:
-					*c = 4; /* same as Ctrl+D above */
+					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+						*c = 126;
+					} else {
+						*c = 4;
+					}
 					return 1;
 				default:
 					if (*c)
@@ -1126,7 +1138,10 @@ enum KEY_ACTION {
 	CTRL_U = 21, /* Ctrl+u */
 	CTRL_W = 23, /* Ctrl+w */
 	ESC = 27, /* Escape */
-	BACKSPACE = 127, /* Backspace */
+	CTRL_ARROW_R = 67, /* Ctrl+arrow R */
+	CTRL_ARROW_L = 68, /* Ctrl+arrow L */
+	CTRL_DELETE = 126, /* Ctrl+delete */
+	BACKSPACE = 127 /* Backspace */
 };
 
 void linenoiseAtExit(void);
@@ -2247,6 +2262,63 @@ inline void linenoiseEditDeletePrevWord(struct linenoiseState *l)
 	refreshLine(l);
 }
 
+inline void linenoiseEditDeleteNextWord(struct linenoiseState *l)
+{
+	int start_pos = l->pos;
+	int diff;
+
+	// Move right past non-spaces (skip the current word)
+	while (l->pos < l->len && l->buf[l->pos] != ' ')
+		l->pos++;
+
+	// Move right past spaces (skip the space between words)
+	while (l->pos < l->len && l->buf[l->pos] == ' ')
+		l->pos++;
+
+	// Calculate how many characters to remove
+	diff = l->pos - start_pos;
+
+	// Remove those characters from the buffer
+	memmove(l->buf + start_pos, l->buf + l->pos, l->len - l->pos + 1);
+	l->len -= diff;
+	l->pos = start_pos;
+
+	refreshLine(l);
+}
+
+inline void linenoiseEditMoveLeftByWord(struct linenoiseState *l)
+{
+	while (l->pos > 0 && l->buf[l->pos - 1] == ' ') // skip spaces
+		l->pos--;
+	while (l->pos > 0 && l->buf[l->pos - 1] != ' ') // skip non-spaces
+		l->pos--;
+	refreshLine(l);
+}
+
+inline void linenoiseEditMoveRightByWord(struct linenoiseState *l)
+{
+	while (l->pos < l->len && l->buf[l->pos] != ' ') // skip non-spaces
+		l->pos++;
+	while (l->pos < l->len && l->buf[l->pos] == ' ') // skip spaces
+		l->pos++;
+	refreshLine(l);
+}
+
+inline void debug_state(int a, int b, int c)
+{
+	// Save cursor position
+	fprintf(stderr, "\x1b[s");
+
+	// Move cursor up two lines
+	fprintf(stderr, "\x1b[2A");
+
+	// Print debug info
+	fprintf(stderr, "[DEBUG] ASCII: %d %d %d   \n", a, b, c);
+
+	// Restore cursor position
+	fprintf(stderr, "\x1b[u");
+}
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -2312,18 +2384,6 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 				continue;
 		}
 
-		// Save cursor position
-		fprintf(stderr, "\x1b[s");
-
-		// Move cursor up two lines
-		fprintf(stderr, "\x1b[2A");
-
-		// Print debug info
-		fprintf(stderr, "[DEBUG] ASCII: %d     \n", c);
-
-		// Restore cursor position
-		fprintf(stderr, "\x1b[u");
-
 		switch (c) {
 		case KEY_NULL: /* no-op */
 			break;
@@ -2378,35 +2438,81 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 
 			/* ESC [ sequences. */
 			if (seq[0] == '[') {
-				if (seq[1] >= '0' && seq[1] <= '9') {
-					/* Extended escape, read additional byte. */
-					if (read(l.ifd, seq + 2, 1) == -1)
+				if (seq[1] == '1') {
+					char next_char;
+					if (read(l.ifd, &next_char, 1) == -1)
 						break;
-					if (seq[2] == '~') {
-						switch (seq[1]) {
-						case '3': /* Delete key. */
-							linenoiseEditDelete(&l);
+
+					if (next_char == ';') {
+						char mod, arrow;
+						if (read(l.ifd, &mod, 1) == -1)
 							break;
+						if (read(l.ifd, &arrow, 1) == -1)
+							break;
+
+						if (mod == '5') {
+							switch (arrow) {
+							case 'C':
+								linenoiseEditMoveRightByWord(&l);
+								break;
+							case 'D':
+								linenoiseEditMoveLeftByWord(&l);
+								break;
+							}
 						}
+					} else {
+						switch (next_char) {
+						case 'C':
+							linenoiseEditMoveRight(&l);
+							break;
+						case 'D':
+							linenoiseEditMoveLeft(&l);
+							break;
+							// handle other arrow keys (up, down) if needed
+						}
+					}
+				} else if (seq[1] == '3') {
+					char next_char;
+					if (read(l.ifd, &next_char, 1) == -1)
+						break;
+
+					if (next_char == ';') {
+						char mod, tilde;
+						if (read(l.ifd, &mod, 1) == -1)
+							break;
+						if (read(l.ifd, &tilde, 1) == -1)
+							break;
+
+						if (mod == '5' && tilde == '~') {
+							linenoiseEditDeleteNextWord(&l);
+						}
+					} else if (next_char == '~') {
+						linenoiseEditDelete(&l);
+					}
+				} else if (seq[1] >= '0' && seq[1] <= '9' && seq[2] == '~') {
+					switch (seq[1]) {
+					case '3':
+						linenoiseEditDelete(&l);
+						break;
 					}
 				} else {
 					switch (seq[1]) {
-					case 'A': /* Up */
+					case 'A':
 						linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
 						break;
-					case 'B': /* Down */
+					case 'B':
 						linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
 						break;
-					case 'C': /* Right */
+					case 'C':
 						linenoiseEditMoveRight(&l);
 						break;
-					case 'D': /* Left */
+					case 'D':
 						linenoiseEditMoveLeft(&l);
 						break;
-					case 'H': /* Home */
+					case 'H':
 						linenoiseEditMoveHome(&l);
 						break;
-					case 'F': /* End*/
+					case 'F':
 						linenoiseEditMoveEnd(&l);
 						break;
 					}
@@ -2452,6 +2558,15 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 		case CTRL_BACKSPACE: /* ctrl-backspace */
 		case CTRL_W: /* ctrl+w, delete previous word */
 			linenoiseEditDeletePrevWord(&l);
+			break;
+		case CTRL_ARROW_L: /* Ctrl+arrow L */
+			linenoiseEditMoveLeftByWord(&l);
+			break;
+		case CTRL_ARROW_R: /* Ctrl+arrow R */
+			linenoiseEditMoveRightByWord(&l);
+			break;
+		case CTRL_DELETE: /* ctrl-delete */
+			linenoiseEditDeleteNextWord(&l);
 			break;
 		}
 	}

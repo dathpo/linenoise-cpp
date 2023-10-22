@@ -1030,7 +1030,11 @@ inline int win32read(int *c)
 					*c = 5;
 					return 1;
 				case VK_BACK:
-					*c = 8;
+					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
+						*c = 23;
+					} else {
+						*c = 127;
+					}
 					return 1;
 				case VK_DELETE:
 					*c = 4; /* same as Ctrl+D above */
@@ -1111,7 +1115,7 @@ enum KEY_ACTION {
 	CTRL_D = 4, /* Ctrl-d */
 	CTRL_E = 5, /* Ctrl-e */
 	CTRL_F = 6, /* Ctrl-f */
-	CTRL_H = 8, /* Ctrl-h */
+	CTRL_BACKSPACE = 8, /* Ctrl-backspace, Ctrl-h */
 	TAB = 9, /* Tab */
 	CTRL_K = 11, /* Ctrl+k */
 	CTRL_L = 12, /* Ctrl+l */
@@ -1122,7 +1126,7 @@ enum KEY_ACTION {
 	CTRL_U = 21, /* Ctrl+u */
 	CTRL_W = 23, /* Ctrl+w */
 	ESC = 27, /* Escape */
-	BACKSPACE = 127 /* Backspace */
+	BACKSPACE = 127, /* Backspace */
 };
 
 void linenoiseAtExit(void);
@@ -2298,7 +2302,7 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 		/* Only autocomplete when the callback is set. It returns < 0 when
 		 * there was an error reading from fd. Otherwise it will return the
 		 * character that should be handled next. */
-		if (c == 9 && completionCallback != NULL) {
+		if (c == TAB && completionCallback != NULL) {
 			nread = completeLine(&l, cbuf, &c);
 			/* Return on errors */
 			if (c < 0)
@@ -2307,6 +2311,18 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 			if (c == 0)
 				continue;
 		}
+
+		// Save cursor position
+		fprintf(stderr, "\x1b[s");
+
+		// Move cursor up two lines
+		fprintf(stderr, "\x1b[2A");
+
+		// Print debug info
+		fprintf(stderr, "[DEBUG] ASCII: %d     \n", c);
+
+		// Restore cursor position
+		fprintf(stderr, "\x1b[u");
 
 		switch (c) {
 		case ENTER: /* enter */
@@ -2319,7 +2335,6 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 			errno = EAGAIN;
 			return -1;
 		case BACKSPACE: /* backspace */
-		case 8: /* ctrl-h */
 			linenoiseEditBackspace(&l);
 			break;
 		case CTRL_D: /* ctrl-d, remove char at right of cursor, or if the
@@ -2435,6 +2450,7 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 			linenoiseClearScreen();
 			refreshLine(&l);
 			break;
+		case CTRL_BACKSPACE: /* ctrl-backspace */
 		case CTRL_W: /* ctrl+w, delete previous word */
 			linenoiseEditDeletePrevWord(&l);
 			break;

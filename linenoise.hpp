@@ -1005,6 +1005,13 @@ inline int win32read(int *c)
 				/* Other Ctrl+KEYs ignored */
 			} else {
 				switch (e.wVirtualKeyCode) {
+				case VK_TAB:
+					if (e.dwControlKeyState & SHIFT_PRESSED) {
+						*c = 130; /* Arbitrary value for Shift+Tab */
+					} else {
+						*c = 9; /* tab */
+					}
+					return 1;
 				case VK_ESCAPE: /* ignore - send ctrl-c, will return -1 */
 					*c = 0;
 					return 1;
@@ -1917,12 +1924,14 @@ inline int completeLine(struct linenoiseState *ls, char *cbuf, int *c)
 	std::vector<std::string> lc;
 	int nread = 0, nwritten;
 	*c = 0;
+	char seq[3];
 
 	completionCallback(ls->buf, lc);
 	if (lc.empty()) {
 		linenoiseBeep();
 	} else {
-		int stop = 0, i = 0;
+		int stop = 0;
+		int i = 0;
 
 		while (!stop) {
 			/* Show completion or original buffer */
@@ -1960,10 +1969,22 @@ inline int completeLine(struct linenoiseState *ls, char *cbuf, int *c)
 					linenoiseBeep();
 				break;
 			case 27: /* escape */
-				/* Re-show original buffer */
-				if (i < static_cast<int>(lc.size()))
-					refreshLine(ls);
-				stop = 1;
+				nread += read(ls->ifd, seq, 2);
+				/* Read for SHIFT+TAB */
+				if (seq[0] == '[' && seq[1] == 'Z') {
+					i = i - 1;
+					i = (i + lc.size() + 1) % (lc.size() + 1);
+					if (i == static_cast<int>(lc.size())) {
+						linenoiseBeep();
+					}
+				}
+				break;
+			case 130: /* shift-tab (Windows) */
+				i = i - 1;
+				i = (i + lc.size() + 1) % (lc.size() + 1);
+				if (i == static_cast<int>(lc.size())) {
+					linenoiseBeep();
+				}
 				break;
 			default:
 				/* Update buffer and return */
@@ -2518,7 +2539,6 @@ inline int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, int buflen, con
 					}
 				}
 			}
-
 			/* ESC O sequences. */
 			else if (seq[0] == 'O') {
 				switch (seq[1]) {

@@ -1007,7 +1007,7 @@ inline int win32read(int *c)
 				switch (e.wVirtualKeyCode) {
 				case VK_TAB:
 					if (e.dwControlKeyState & SHIFT_PRESSED) {
-						*c = 130; /* Arbitrary value for Shift+Tab */
+						*c = 131; /* Arbitrary value for Shift+Tab */
 					} else {
 						*c = 9; /* tab */
 					}
@@ -1020,14 +1020,14 @@ inline int win32read(int *c)
 					return 1;
 				case VK_LEFT: /* left */
 					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
-						*c = 68;
+						*c = 128;
 					} else {
 						*c = 2;
 					}
 					return 1;
 				case VK_RIGHT: /* right */
 					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
-						*c = 67;
+						*c = 129;
 					} else {
 						*c = 6;
 					}
@@ -1053,7 +1053,7 @@ inline int win32read(int *c)
 					return 1;
 				case VK_DELETE:
 					if (e.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) {
-						*c = 126;
+						*c = 130;
 					} else {
 						*c = 4;
 					}
@@ -1145,10 +1145,11 @@ enum KEY_ACTION {
 	CTRL_U = 21, /* Ctrl+u */
 	CTRL_W = 23, /* Ctrl+w */
 	ESC = 27, /* Escape */
-	CTRL_ARROW_R = 67, /* Ctrl+arrow R */
-	CTRL_ARROW_L = 68, /* Ctrl+arrow L */
-	CTRL_DELETE = 126, /* Ctrl+delete */
-	BACKSPACE = 127 /* Backspace */
+	BACKSPACE = 127, /* Backspace */
+	CTRL_ARROW_L, /* Ctrl+arrow L (Windows) */
+	CTRL_ARROW_R, /* Ctrl+arrow R (Windows) */
+	CTRL_DELETE, /* Ctrl+delete (Windows) */
+	SHIFT_TAB, /* Shift+Tab (Windows) */
 };
 
 void linenoiseAtExit(void);
@@ -1963,12 +1964,12 @@ inline int completeLine(struct linenoiseState *ls, char *cbuf, int *c)
 			}
 
 			switch (*c) {
-			case 9: /* tab */
+			case TAB: /* tab */
 				i = (i + 1) % (lc.size() + 1);
 				if (i == static_cast<int>(lc.size()))
 					linenoiseBeep();
 				break;
-			case 27: /* escape */
+			case ESC: /* escape */
 				nread += read(ls->ifd, seq, 2);
 				/* Read for SHIFT+TAB */
 				if (seq[0] == '[' && seq[1] == 'Z') {
@@ -1979,7 +1980,7 @@ inline int completeLine(struct linenoiseState *ls, char *cbuf, int *c)
 					}
 				}
 				break;
-			case 130: /* shift-tab (Windows) */
+			case SHIFT_TAB: /* shift-tab (Windows) */
 				i = i - 1;
 				i = (i + lc.size() + 1) % (lc.size() + 1);
 				if (i == static_cast<int>(lc.size())) {
